@@ -63,3 +63,12 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+
+CARLA_LICENSE
+ImportAssets.sh
+Manifest_DebugFiles_Linux.txt
+PythonAPI/carla/
+PythonAPI/examples/
+PythonAPI/util/
+VERSION
+ckpts/
