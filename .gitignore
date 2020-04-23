@@ -72,3 +72,4 @@ PythonAPI/examples/
 PythonAPI/util/
 VERSION
 ckpts/
+.idea/
