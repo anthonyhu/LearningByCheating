@@ -1,10 +1,5 @@
 import torch
 
-class SummaryWriter:
-	def __init__(self, *args, **kwargs):
-		print("tensorboardX not found. You need to install it to use the SummaryWriter.")
-		print("try: pip3 install tensorboardX")
-		raise ImportError
 		
 class UnNormalize(object):
     def __init__(self, mean=[0.2929, 0.3123, 0.3292], std=[0.0762, 0.0726, 0.0801]):
@@ -25,10 +20,6 @@ class UnNormalize(object):
         
         return new_tensor
 
-try:
-	from tensorboardX import SummaryWriter
-except ImportError:
-	pass
 
 def one_hot(x, num_digits=4, start=1):
     N = x.size()[0]

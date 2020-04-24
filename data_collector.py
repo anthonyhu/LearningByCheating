@@ -21,8 +21,6 @@ import numpy as np
 import tqdm
 import lmdb
 
-import carla
-
 from benchmark import make_suite
 from bird_view.utils import carla_utils as cu
 from bird_view.utils import bz_utils as bu
@@ -30,6 +28,8 @@ from bird_view.utils import bz_utils as bu
 from bird_view.models.common import crop_birdview
 from bird_view.models.controller import PIDController
 from bird_view.models.roaming import RoamingAgentMine
+
+import carla
 
 
 def _debug(observations, agent_debug):

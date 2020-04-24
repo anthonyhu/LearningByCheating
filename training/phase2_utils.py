@@ -1,10 +1,10 @@
 import torch
 import numpy as np
 import random
-import augmenter
 from torchvision import transforms
 import torchvision.transforms.functional as TF
 
+import augmenter
 import sys
 import glob
 try:
