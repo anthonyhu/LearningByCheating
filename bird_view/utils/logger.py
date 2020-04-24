@@ -1,11 +1,11 @@
 from collections import OrderedDict
 
 from loguru import logger
-#from tensorboardX import SummaryWriter
 
 import numpy as np
 import torch
 import torchvision.utils as tv_utils
+from torch.utils.tensorboard import SummaryWriter
 
 
 def _preprocess_image(x):

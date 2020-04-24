@@ -7,7 +7,7 @@ import weakref
 import math
 
 import numpy as np
-
+import torchvision
 import carla
 
 from carla import TrafficLightState as tls

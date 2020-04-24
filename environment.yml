@@ -21,6 +21,7 @@ dependencies:
 - gitpython=3.0.5
 - requests=2.22.0
 - scikit-video=1.1.11
+- tensorboard=1.15.0
 - jupyter=1.0.0
 - mpi4py=3.0.3
 - python-lmdb=0.96
@@ -30,4 +31,3 @@ dependencies:
     - flake8==3.7.9
     - gym==0.15.7
     - pygame==1.9.6
-    - tensorboardx==1.6

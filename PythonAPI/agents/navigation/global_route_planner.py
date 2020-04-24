@@ -10,9 +10,10 @@ import math
 import numpy as np
 import networkx as nx
 
-import carla
 from agents.navigation.local_planner import RoadOption
 from agents.tools.misc import vector
+import torchvision
+import carla
 
 
 class GlobalRoutePlanner(object):

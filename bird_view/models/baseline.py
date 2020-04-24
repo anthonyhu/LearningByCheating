@@ -4,11 +4,11 @@ import torch.nn as nn
 
 from torchvision import transforms
 
-import carla
-
 from .resnet import get_resnet
 from .common import select_branch, Normalize
 from .agent import Agent
+import torchvision
+import carla
 
 
 def BaselineBranch(p):

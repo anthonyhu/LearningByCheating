@@ -1,11 +1,11 @@
 import math
 import unittest
 
-import carla
-
 from global_route_planner import GlobalRoutePlanner
 from global_route_planner import NavEnum
 from global_route_planner_dao import GlobalRoutePlannerDAO
+import torchvision
+import carla
 
 
 class Test_GlobalRoutePlanner(unittest.TestCase):

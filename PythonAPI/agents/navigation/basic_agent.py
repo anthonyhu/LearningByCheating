@@ -11,11 +11,13 @@ waypoints and avoiding other vehicles.
 The agent also responds to traffic lights. """
 
 
-import carla
 from agents.navigation.agent import Agent, AgentState
 from agents.navigation.local_planner import LocalPlanner
 from agents.navigation.global_route_planner import GlobalRoutePlanner
 from agents.navigation.global_route_planner_dao import GlobalRoutePlannerDAO
+import torchvision
+import carla
+
 
 class BasicAgent(Agent):
     """

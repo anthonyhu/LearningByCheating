@@ -81,10 +81,11 @@ try:
 except IndexError:
     pass
 
-import carla
-from carla import ColorConverter as cc
 from agents.navigation.roaming_agent import *
 from agents.navigation.basic_agent import *
+import torchvision
+import carla
+from carla import ColorConverter as cc
 
 
 

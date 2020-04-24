@@ -4,11 +4,12 @@ import queue
 
 import numpy as np
 
-import carla
 
 from agents.navigation.local_planner import RoadOption, LocalPlannerNew, LocalPlannerOld
 
 from .base_suite import BaseSuite
+import torchvision
+import carla
 
 
 def from_file(poses_txt):

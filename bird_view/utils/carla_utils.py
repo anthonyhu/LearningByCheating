@@ -9,12 +9,12 @@ import math
 
 # import needed due to https://github.com/pytorch/pytorch/issues/36034
 import torchvision
+
+from .map_utils import Wrapper as map_utils
 import carla
 
 from carla import ColorConverter
 from carla import WeatherParameters
-
-from .map_utils import Wrapper as map_utils
 
 
 PRESET_WEATHERS = {

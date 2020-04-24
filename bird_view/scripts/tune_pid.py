@@ -1,11 +1,12 @@
 import numpy as np
 import tqdm
-import carla
 
 from agents.navigation.roaming_agent import RoamingAgent
 
 from bird_view.utils import carla_utils as cu
 from bird_view.utils import bz_utils as bzu
+import torchvision
+import carla
 
 
 TOWN = 'Town01'

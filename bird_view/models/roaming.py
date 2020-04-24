@@ -4,7 +4,7 @@ from agents.navigation.agent import Agent
 from agents.navigation.local_planner import LocalPlannerNew
 
 from .controller import PIDController
-
+import torchvision
 import carla
 
 

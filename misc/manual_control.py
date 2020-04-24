@@ -67,10 +67,6 @@ except IndexError:
 # ==============================================================================
 
 
-import carla
-
-from carla import ColorConverter as cc
-
 import argparse
 import collections
 import datetime
@@ -118,7 +114,10 @@ try:
     import numpy as np
 except ImportError:
     raise RuntimeError('cannot import numpy, make sure numpy package is installed')
+import torchvision
+import carla
 
+from carla import ColorConverter as cc
 
 # ==============================================================================
 # -- Global functions ----------------------------------------------------------

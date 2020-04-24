@@ -19,7 +19,7 @@ try:
         'win-amd64' if os.name == 'nt' else 'linux-x86_64'))[0])
 except IndexError:
     pass
-
+import torchvision
 import carla
 
 import argparse

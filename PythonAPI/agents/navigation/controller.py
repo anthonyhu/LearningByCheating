@@ -13,8 +13,9 @@ import math
 
 import numpy as np
 
-import carla
 from agents.tools.misc import get_speed
+import torchvision
+import carla
 
 
 class VehiclePIDController():

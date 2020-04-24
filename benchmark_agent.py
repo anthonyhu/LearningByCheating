@@ -3,10 +3,9 @@ import time
 
 from pathlib import Path
 
+import bird_view.utils.bz_utils as bzu
 from benchmark import make_suite, get_suites, ALL_SUITES
 from benchmark.run_benchmark import run_benchmark
-
-import bird_view.utils.bz_utils as bzu
 
 
 def _agent_factory_hack(model_path, config, autopilot):
@@ -82,4 +81,5 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    run(Path(args.model_path), args.port, args.suite, args.big_cam, args.seed, args.autopilot, args.resume, max_run=args.max_run, show=args.show)
+    run(Path(args.model_path), args.port, args.suite, args.big_cam, args.seed, args.autopilot, args.resume,
+        max_run=args.max_run, show=args.show)
