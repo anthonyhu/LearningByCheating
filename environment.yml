@@ -27,6 +27,7 @@ dependencies:
 - python-lmdb=0.96
 - opencv=4.2.0
 - loguru=0.4.1
+- terminaltables=3.1.0
 - pip:
     - flake8==3.7.9
     - gym==0.15.7
