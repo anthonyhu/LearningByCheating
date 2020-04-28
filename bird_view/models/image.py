@@ -91,7 +91,8 @@ class ImagePolicyModelSS(common.ResnetBase):
 
 
 class ImageAgent(Agent):
-    def __init__(self, steer_points=None, pid=None, gap=5, camera_args={'x':384,'h':160,'fov':90,'world_y':1.4,'fixed_offset':4.0}, **kwargs):
+    def __init__(self, steer_points=None, pid=None, gap=5, camera_args={'w':384,'h':160,'fov':90,'world_y':1.4,
+                                                                        'fixed_offset':4.0}, **kwargs):
         super().__init__(**kwargs)
 
         self.fixed_offset = float(camera_args['fixed_offset'])

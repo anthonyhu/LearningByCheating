@@ -21,8 +21,8 @@ import numpy as np
 import tqdm
 import lmdb
 
-from bird_view.utils import carla_utils as cu
 from bird_view.utils import bz_utils as bu
+from bird_view.utils import carla_utils as cu
 
 from benchmark import make_suite
 from bird_view.models.common import crop_birdview
