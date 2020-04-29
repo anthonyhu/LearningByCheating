@@ -243,6 +243,12 @@ def main(params):
                             ('rgb_%04d' % i).encode(),
                             np.ascontiguousarray(x['rgb']).astype(np.uint8))
                     txn.put(
+                        ('depth_%04d' % i).encode(),
+                        np.ascontiguousarray(x['depth']).astype(np.float32))
+                    txn.put(
+                        ('segmentation_%04d' % i).encode(),
+                        np.ascontiguousarray(x['segmentation']).astype(np.uint8))
+                    txn.put(
                             ('birdview_%04d' % i).encode(),
                             np.ascontiguousarray(x['birdview']).astype(np.uint8))
                     txn.put(

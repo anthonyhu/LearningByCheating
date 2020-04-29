@@ -87,15 +87,103 @@ def set_sync_mode(client, sync):
     world.apply_settings(settings)
 
 
+def to_bgra_array(image):
+    """Convert a CARLA raw image to a BGRA numpy array."""
+    if not isinstance(image, carla.Image):
+        raise ValueError("Argument must be a carla.sensor.Image")
+    array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
+    array = np.reshape(array, (image.height, image.width, 4))
+    return array
+
+
+def to_rgb_array(image):
+    """Convert a CARLA raw image to a RGB numpy array."""
+    array = to_bgra_array(image)
+    # Convert BGRA to RGB.
+    array = array[:, :, :3]
+    array = array[:, :, ::-1]
+    return array
+
+
+def depth_to_array(image):
+    """
+    Convert an image containing CARLA encoded depth-map to a 2D array containing
+    the depth value of each pixel normalized between [0.0, 1.0].
+    """
+    array = to_bgra_array(image)
+    array = array.astype(np.float32)
+    # Apply (R + G * 256 + B * 256 * 256) / (256 * 256 * 256 - 1).
+    normalized_depth = np.dot(array[:, :, :3], [65536.0, 256.0, 1.0])
+    normalized_depth /= 16777215.0  # (256.0 * 256.0 * 256.0 - 1.0)
+    return normalized_depth
+
+
+def depth_to_logarithmic_grayscale(image):
+    """
+    Convert an image containing CARLA encoded depth-map to a logarithmic
+    grayscale image array.
+    "max_depth" is used to omit the points that are far enough.
+    """
+    normalized_depth = depth_to_array(image)
+    # Convert to logarithmic depth.
+    logdepth = np.ones(normalized_depth.shape) + (np.log(normalized_depth) / 5.70378)
+    logdepth = np.clip(logdepth, 0.0, 1.0)
+    return logdepth
+
+
+def labels_to_array(image):
+    """
+    Convert an image containing CARLA semantic segmentation labels to a 2D array
+    containing the label of each pixel.
+    """
+    # Labels are stored in the red channel (bgra)
+    return to_bgra_array(image)[:, :, 2]
+
+
+def labels_to_cityscapes_palette(image):
+    """
+    Convert an image containing CARLA semantic segmentation labels to
+    Cityscapes palette.
+    """
+    classes = {
+        0: [0, 0, 0],         # None
+        1: [70, 70, 70],      # Buildings
+        2: [190, 153, 153],   # Fences
+        3: [72, 0, 90],       # Other
+        4: [220, 20, 60],     # Pedestrians
+        5: [153, 153, 153],   # Poles
+        6: [157, 234, 50],    # RoadLines
+        7: [128, 64, 128],    # Roads
+        8: [244, 35, 232],    # Sidewalks
+        9: [107, 142, 35],    # Vegetation
+        10: [0, 0, 255],      # Vehicles
+        11: [102, 102, 156],  # Walls
+        12: [220, 220, 0]     # TrafficSigns
+    }
+    array = labels_to_array(image)
+    result = np.zeros((array.shape[0], array.shape[1], 3))
+    for key, value in classes.items():
+        result[np.where(array == key)] = value
+    return result
+
+
 def carla_img_to_np(carla_img):
     carla_img.convert(ColorConverter.Raw)
 
-    img = np.frombuffer(carla_img.raw_data, dtype=np.dtype('uint8'))
-    img = np.reshape(img, (carla_img.height, carla_img.width, 4))
-    img = img[:,:,:3]
-    img = img[:,:,::-1]
+    return to_rgb_array(carla_img)
 
-    return img
+
+def carla_depth_to_np(carla_img):
+    carla_img.convert(ColorConverter.Raw)
+
+    return depth_to_logarithmic_grayscale(carla_img)
+
+
+def carla_segmentation_to_np(carla_img):
+    carla_img.convert(ColorConverter.Raw)
+
+    return labels_to_array(carla_img)
+
 
 
 def get_birdview(observations):
@@ -115,6 +203,8 @@ def get_birdview(observations):
 def process(observations):
     result = dict()
     result['rgb'] = observations['rgb'].copy()
+    result['depth'] = observations['depth'].copy()
+    result['segmentation'] = observations['segmentation'].copy()
     result['birdview'] = observations['birdview'].copy()
     result['collided'] = observations['collided']
 
@@ -382,6 +472,8 @@ class CarlaWrapper(object):
 
         self._rgb_queue = None
         self.rgb_image = None
+        self.depth_image, self._depth_queue = None, None
+        self.segmentation_image, self._segmentation_queue = None, None
         self._big_cam_queue = None
         self.big_cam_image = None
         
@@ -544,6 +636,12 @@ class CarlaWrapper(object):
         with self._rgb_queue.mutex:
             self._rgb_queue.queue.clear()
 
+        with self._depth_queue.mutex:
+            self._depth_queue.queue.clear()
+
+        with self._segmentation_queue.mutex:
+            self._segmentation_queue.queue.clear()
+
         self._time_start = time.time()
         self._tick = 0
         
@@ -564,6 +662,12 @@ class CarlaWrapper(object):
         # Put here for speed (get() busy polls queue).
         while self.rgb_image is None or self._rgb_queue.qsize() > 0:
             self.rgb_image = self._rgb_queue.get()
+
+        while self.depth_image is None or self._depth_queue.qsize() > 0:
+            self.depth_image = self._depth_queue.get()
+
+        while self.segmentation_image is None or self._segmentation_queue.qsize() > 0:
+            self.segmentation_image = self._segmentation_queue.get()
         
         if self._big_cam:
             while self.big_cam_image is None or self._big_cam_queue.qsize() > 0:
@@ -577,6 +681,8 @@ class CarlaWrapper(object):
         # print ("%.3f, %.3f"%(self.rgb_image.timestamp, self._world.get_snapshot().timestamp.elapsed_seconds))
         result.update({
             'rgb': carla_img_to_np(self.rgb_image),
+            'depth': carla_depth_to_np(self.depth_image),
+            'segmentation': carla_segmentation_to_np(self.segmentation_image),
             'birdview': get_birdview(result),
             'collided': self.collided
             })
@@ -629,7 +735,16 @@ class CarlaWrapper(object):
         if self._rgb_queue:
             with self._rgb_queue.mutex:
                 self._rgb_queue.queue.clear()
-        
+
+        if self._depth_queue:
+            with self._depth_queue.mutex:
+                self._depth_queue.queue.clear()
+
+        if self._segmentation_queue:
+            with self._segmentation_queue.mutex:
+                self._segmentation_queue.queue.clear()
+
+
         if self._big_cam_queue:
             with self._big_cam_queue.mutex:
                 self._big_cam_queue.queue.clear()
@@ -674,7 +789,34 @@ class CarlaWrapper(object):
 
         rgb_camera.listen(self._rgb_queue.put)
         self._actor_dict['sensor'].append(rgb_camera)
-        
+
+        # Depth sensor
+        self._depth_queue = queue.Queue()
+        depth_camera_bp = self._blueprints.find('sensor.camera.depth')
+        depth_camera_bp.set_attribute('image_size_x', '384')
+        depth_camera_bp.set_attribute('image_size_y', '160')
+        depth_camera_bp.set_attribute('fov', '90')
+        depth_camera = self._world.spawn_actor(
+            depth_camera_bp,
+            carla.Transform(carla.Location(x=2.0, z=1.4), carla.Rotation(pitch=0)),
+            attach_to=self._player)
+
+        depth_camera.listen(self._depth_queue.put)
+        self._actor_dict['sensor'].append(depth_camera)
+
+        # Segmentation sensor
+        self._segmentation_queue = queue.Queue()
+        segmentation_camera_bp = self._blueprints.find('sensor.camera.semantic_segmentation')
+        segmentation_camera_bp.set_attribute('image_size_x', '384')
+        segmentation_camera_bp.set_attribute('image_size_y', '160')
+        segmentation_camera_bp.set_attribute('fov', '90')
+        segmentation_camera = self._world.spawn_actor(
+            segmentation_camera_bp,
+            carla.Transform(carla.Location(x=2.0, z=1.4), carla.Rotation(pitch=0)),
+            attach_to=self._player)
+
+        segmentation_camera.listen(self._segmentation_queue.put)
+        self._actor_dict['sensor'].append(segmentation_camera)
         
 
         # Collisions.
