@@ -161,10 +161,8 @@ def labels_to_cityscapes_palette(image):
         12: [220, 220, 0]     # TrafficSigns
     }
     array = labels_to_array(image)
-    result = np.zeros((array.shape[0], array.shape[1], 3))
-    for key, value in classes.items():
-        result[np.where(array == key)] = value
-    return result
+    colormap = np.array(list(classes.values())).astype(np.uint8)
+    return colormap[array]
 
 
 def carla_img_to_np(carla_img):
