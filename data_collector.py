@@ -14,6 +14,8 @@ python3 bird_view/data_collector.py \
         --n_pedestrians 0
 """
 import argparse
+import math
+from enum import Enum
 
 from pathlib import Path
 
@@ -31,6 +33,8 @@ from bird_view.models.roaming import RoamingAgentMine
 
 import torchvision
 import carla
+
+HACK_MAX_DISTANCE_TO_TRAFFIC_LIGHT = 40 # meters, sometimes we got an issue on the distance to traffic_light, let's just dump those states...
 
 
 def _debug(observations, agent_debug):
@@ -115,6 +119,16 @@ class NoisyAgent(RoamingAgentMine):
     Each parameter is in units of frames.
     State can be "drive" or "noise".
     """
+    # CONSTANT for traffic light state
+    LightState = Enum('State', 'Red Yellow Green')   # corresponds to 1, 2, 3 in value
+
+    # Magic numbers which seems to work, at least on Town05/Town02
+    distance_to_detect_US = 60
+    distance_to_detect_EU = 30
+    UGLY_HARDCODED_MIN_DIST_TO_TRAFFIC_LIGHT_EU = 5
+    max_angle_between_traffic_light_and_car_US = 35
+    max_angle_between_traffic_light_and_car_EU = 35
+
     def __init__(self, env, noise=None):
         super().__init__(env._player, resolution=1, threshold_before=7.5, threshold_after=5.)
 
@@ -129,6 +143,19 @@ class NoisyAgent(RoamingAgentMine):
 
         self.speed_control = PIDController(K_P=0.5, K_I=0.5/20, K_D=0.1)
         self.turn_control = PIDController(K_P=0.75, K_I=1.0/20, K_D=0.0)
+
+        # Traffic lights
+        self.current_traffic_light = None  # We want to detect when we passed at red/orange to kill the agent!
+        self.hack_for_intersection = None  # Hack to detect when we are just after a traffic light, we want to be on intersection even if Carla doenst say tho!
+        if "Town01" in self._map.name or "Town02" in self._map.name:
+            print("We take a smaller distance cause we got EU style traffic light")
+            self.distance_to_detect = self.distance_to_detect_EU
+            self.max_angle_between_traffic_light_and_car = self.max_angle_between_traffic_light_and_car_EU
+            self.US_style = False
+        else:
+            self.distance_to_detect = self.distance_to_detect_US
+            self.max_angle_between_traffic_light_and_car = self.max_angle_between_traffic_light_and_car_US
+            self.US_style = True
 
     def run_step(self, observations):
         self.steps += 1
@@ -162,6 +189,130 @@ class NoisyAgent(RoamingAgentMine):
 
         return control, self.road_option, last_status, real_control
 
+    def detect_traffic_light(self, traffic_light_list, waypoint=None):
+        """
+        This method is specialized to check traffic lights.
+
+        :param traffic_light_list: list containing TrafficLight objects
+        :return: a tuple given by (bool_flag, traffic_light), where
+                 - bool_flag is True if there is a traffic light in RED
+                   affecting us and False otherwise
+                 - traffic_light is the object itself or None if there is no
+                   red traffic light affecting us
+        """
+
+        # We may want to detect traffic light from a waypoint and not from the true position of the vehicule (
+        if waypoint is None:
+            # print("we detect traffic light from the true position of the vehicule")
+            ego_vehicle_transform = self._vehicle.get_transform()
+            ego_vehicle_rotation = ego_vehicle_transform.rotation.yaw
+            ego_vehicle_location = ego_vehicle_transform.location
+            ego_vehicle_waypoint = self._map.get_waypoint(ego_vehicle_location)
+        else:
+            # print("we detect traffic light from a waypoint (suppose to be the good position of the vehicule)")
+            ego_vehicle_rotation = waypoint.transform.rotation.yaw
+            ego_vehicle_location = waypoint.transform.location
+            ego_vehicle_waypoint = waypoint
+
+        if ego_vehicle_waypoint.is_junction:
+            self.current_traffic_light = None
+            self.hack_for_intersection = None
+            # print("It is too late. Do not block the intersection! Keep going!")
+            return (True, None, None, None)
+
+        min_angle = 180.0
+        sel_distance = 0.0
+        sel_traffic_light = None
+        for traffic_light in traffic_light_list:
+            distance_tf_veh, d_angle_1, d_angle_2 = \
+                self.compute_distance_angle_traffic_light_Marin(traffic_light.get_location(),
+                                                                traffic_light.get_transform().rotation.yaw - 90, #In all town the traffic light "real" angle is 90 degre less than the angle in Ureal Engine
+                                                                ego_vehicle_location,
+                                                                ego_vehicle_rotation)
+
+            if distance_tf_veh < self.distance_to_detect and (d_angle_1 + d_angle_2) < min(self.max_angle_between_traffic_light_and_car * 2, min_angle): # We multiply by 2 casue we sum 2 angles...
+                # print("distance_tf_veh = ", distance_tf_veh)
+                # print("d_angle_1 = ", d_angle_1)
+                # print("d_angle_2 = ", d_angle_2)
+                sel_distance = distance_tf_veh
+                sel_traffic_light = traffic_light
+                min_angle = d_angle_1 + d_angle_2
+
+        if sel_traffic_light is not None:
+            # print('=== Distance = {} | Angle = {} | ID = {}'.format(sel_distance, min_angle, sel_traffic_light.id))
+
+            if self.current_traffic_light is None:
+                self.current_traffic_light = sel_traffic_light
+                self.hack_for_intersection = sel_traffic_light
+
+            if self.current_traffic_light.id != sel_traffic_light.id:
+                # print("WE CHANGE TRAFFIC LIGHT WITHOUT GOING ON INTERSECTION, THAT SHOULD NOT HAPPEN")
+                self.current_traffic_light = sel_traffic_light
+                self.hack_for_intersection = sel_traffic_light
+
+            if self.US_style:
+                # We need to adapt the dist_to_tl, we want it to be the distance to the actual position where he must stop!
+                distance_UGLY = 0
+                next_waypoint_UGLY_us = list(ego_vehicle_waypoint.next(1.0))
+                while (len(next_waypoint_UGLY_us) == 1) and (not next_waypoint_UGLY_us[0].is_junction):
+                    next_waypoint_UGLY_us = next_waypoint_UGLY_us[0]
+                    next_waypoint_UGLY_us = list(next_waypoint_UGLY_us.next(1.0))
+                    distance_UGLY += 1
+
+                sel_distance = distance_UGLY
+
+                if sel_distance >= HACK_MAX_DISTANCE_TO_TRAFFIC_LIGHT:
+                    # print("THERE IS AN ISSUE THERE, lets say there were no traffic light at all")
+                    self.current_traffic_light = None
+                    self.hack_for_intersection = None
+                    return (False, None, None, None)
+
+            else:
+                sel_distance = max(0, sel_distance - self.UGLY_HARDCODED_MIN_DIST_TO_TRAFFIC_LIGHT_EU)
+
+            current_state = sel_traffic_light.state # I think a bug where coming when state changed EXACLTY between the next if elif statement!
+            if current_state == carla.libcarla.TrafficLightState.Red:
+                # print("il est rouge le soit disant feu")
+                return (False, sel_traffic_light, self.LightState.Red.value, sel_distance)
+            elif current_state == carla.libcarla.TrafficLightState.Green:
+                # print("il est vert le soit disant feu")
+                return (False, sel_traffic_light, self.LightState.Green.value, sel_distance)
+            elif current_state == carla.libcarla.TrafficLightState.Yellow:
+                # print("il est jaune le soit disant feu")
+                return (False, sel_traffic_light, self.LightState.Yellow.value, sel_distance)
+            else:
+                print("PROBLEME IL EST RIEN DU TOUT LE SOIT DISANT FEU, DISONS QU'il était rouge...")
+                return (False, sel_traffic_light, self.LightState.Red.value, sel_distance)
+                # raise Exception
+
+        else:
+            self.current_traffic_light = None
+            if self.hack_for_intersection is not None:
+                return (True, None, None, None) # Hack to detect when we are just after a traffic light, we want to be on intersection even if Carla doenst say tho!
+            else:
+                return (False, None, None, None)
+
+    @staticmethod
+    def compute_distance_angle_traffic_light_Marin(tl_location, tl_orientation, veh_location, veh_orientation):
+        """
+        Compute relative angle and distance between a target_location and a current_location
+
+        :param tl_location: location of the traffic light
+        :param tl_orientation: orientation of the traffic light
+        :param veh_location: location of the vehicule
+        :param veh_orientation: orientation of the vehicule
+        :return: a tuple composed by the distance to the object and the angle between both objects
+        """
+        tl_veh_vector = np.array([tl_location.x - veh_location.x, tl_location.y - veh_location.y])
+        distance_tf_veh = np.linalg.norm(tl_veh_vector)
+
+        veh_vector = np.array([math.cos(math.radians(veh_orientation)), math.sin(math.radians(veh_orientation))])
+        tl_vector = np.array([math.cos(math.radians(tl_orientation)), math.sin(math.radians(tl_orientation))])
+        d_angle_1 = math.degrees(math.acos(np.dot(tl_veh_vector, veh_vector) / distance_tf_veh))
+        d_angle_2 = math.degrees(math.acos(np.dot(tl_veh_vector, tl_vector) / distance_tf_veh))
+
+        return (distance_tf_veh, d_angle_1, d_angle_2)
+
 
 def get_episode(env, params):
     data = list()
@@ -181,6 +332,9 @@ def get_episode(env, params):
     agent = NoisyAgent(env)
     agent.set_route(env._start_pose.location, env._target_pose.location)
 
+    world = env._client.get_world()
+    traffic_light_list = world.get_actors().filter('*traffic_light*')
+
     # Real loop.
     while len(data) < params.frames_per_episode and not env.is_success() and not env.collided:
         for _ in range(params.frame_skip):
@@ -194,6 +348,31 @@ def get_episode(env, params):
             observations['command'] = command
             observations['control'] = control
             observations['real_control'] = real_control
+
+            # Traffic lights
+            is_intersection_marin, traffic_light, light_state, distance_to_traffic_light = \
+                agent.detect_traffic_light(traffic_light_list)
+            if traffic_light:
+                print("INTERSECTION MARIN = ", is_intersection_marin)
+                print("incoming traffic light is at " + str(distance_to_traffic_light) + "meters and is of color ",
+                      agent.LightState(light_state).name)
+                green = carla.Color(0, 255, 0)
+                size_plot_point = 0.1
+                life_time_plot_point = 1.0
+                world.debug.draw_point(traffic_light.get_location(), color=green, size=size_plot_point * 10,
+                                       life_time=life_time_plot_point)
+
+                observations['is_traffic_light'] = True
+                observations['traffic_light_color'] = light_state - 1
+                observations['traffic_light_distance'] = distance_to_traffic_light
+
+            else:
+                observations['is_traffic_light'] = False
+                observations['traffic_light_color'] = 0
+                observations['traffic_light_distance'] = 0
+            print(f'is traffic light: {observations["is_traffic_light"]}')
+            print(f'traffic color: {observations["traffic_light_color"]}')
+            print(f'traffic distance: {observations["traffic_light_distance"]}')
 
             if not params.nodisplay:
                 _debug(observations, agent_debug)

@@ -221,7 +221,10 @@ def process(observations):
             observations['control'].throttle,
             observations['control'].brake,
             observations['control'].manual_gear_shift,
-            observations['control'].gear
+            observations['control'].gear,
+            observations['is_traffic_light'],
+            observations['traffic_light_color'],
+            observations['traffic_light_distance'],
             ]
     measurements = [x if isinstance(x, np.ndarray) else np.float32([x]) for x in measurements]
     measurements = np.concatenate(measurements, 0)
