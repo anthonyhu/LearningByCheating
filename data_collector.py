@@ -356,11 +356,13 @@ def get_episode(env, params):
                 print("INTERSECTION MARIN = ", is_intersection_marin)
                 print("incoming traffic light is at " + str(distance_to_traffic_light) + "meters and is of color ",
                       agent.LightState(light_state).name)
-                green = carla.Color(0, 255, 0)
-                size_plot_point = 0.1
-                life_time_plot_point = 1.0
-                world.debug.draw_point(traffic_light.get_location(), color=green, size=size_plot_point * 10,
-                                       life_time=life_time_plot_point)
+
+                # visualise traffic lights with a green rectangle
+                # green = carla.Color(0, 255, 0)
+                # size_plot_point = 0.1
+                # life_time_plot_point = 1.0
+                # world.debug.draw_point(traffic_light.get_location(), color=green, size=size_plot_point * 10,
+                #                        life_time=life_time_plot_point)
 
                 observations['is_traffic_light'] = True
                 observations['traffic_light_color'] = light_state - 1
